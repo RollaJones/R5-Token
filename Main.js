@@ -2,31 +2,34 @@ window.onload = getTopTokens;
 
 async function checkToken(tokenAddress = null) {
   const inputAddress = document.getElementById("tokenAddress").value;
-  const address = tokenAddress || inputAddress;
+  const address = tokenAddress || inputAddress.trim();
   const resultDiv = document.getElementById("result");
-  resultDiv.innerHTML = "Loading...";
+  resultDiv.innerHTML = "Searching...";
 
   try {
-    const proxy = "https://corsproxy.io/?";
-    const url = `https://api.dexscreener.com/latest/dex/pairs/solana/${address}`;
-    const response = await fetch(proxy + encodeURIComponent(url));
-    const data = await response.json();
+    // Step 1: Search DexScreener using token address
+    const searchURL = `https://corsproxy.io/?${encodeURIComponent(
+      `https://api.dexscreener.com/latest/dex/search?q=${address}`
+    )}`;
+    const searchRes = await fetch(searchURL);
+    const searchData = await searchRes.json();
 
-    if (!data.pair) {
-      resultDiv.innerHTML = "<p>Token not found or invalid.</p>";
+    if (!searchData.pairs || searchData.pairs.length === 0) {
+      resultDiv.innerHTML = "<p>No token found or invalid address.</p>";
       return;
     }
 
-    const token = data.pair;
-    const score = calculateSafetyScore(token);
-    const redFlags = detectRedFlags(token);
+    // Step 2: Use first matched pair from search
+    const pair = searchData.pairs[0];
+    const score = calculateSafetyScore(pair);
+    const redFlags = detectRedFlags(pair);
 
     resultDiv.innerHTML = `
-      <h2>${token.baseToken.name || "Unknown Token"}</h2>
-      <p><strong>Symbol:</strong> ${token.baseToken.symbol}</p>
-      <p><strong>Price:</strong> $${parseFloat(token.priceUsd).toFixed(6)}</p>
-      <p><strong>Liquidity:</strong> $${parseFloat(token.liquidity.usd).toLocaleString()}</p>
-      <p><strong>Volume 24h:</strong> $${parseFloat(token.volume.h24).toLocaleString()}</p>
+      <h2>${pair.baseToken.name || "Unknown Token"}</h2>
+      <p><strong>Symbol:</strong> ${pair.baseToken.symbol}</p>
+      <p><strong>Price:</strong> $${parseFloat(pair.priceUsd).toFixed(6)}</p>
+      <p><strong>Liquidity:</strong> $${parseFloat(pair.liquidity.usd).toLocaleString()}</p>
+      <p><strong>Volume 24h:</strong> $${parseFloat(pair.volume.h24).toLocaleString()}</p>
       <p><strong>Safety Score:</strong> ${score}/100</p>
     `;
 
@@ -39,6 +42,7 @@ async function checkToken(tokenAddress = null) {
       `;
     }
   } catch (err) {
+    console.error("Check Token Error:", err);
     resultDiv.innerHTML = "<p>Error fetching data. Try again.</p>";
   }
 }
