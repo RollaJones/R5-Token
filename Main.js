@@ -114,14 +114,14 @@ async function scanWallet() {
     });
 
     const data = await response.json();
-    const result = data.result;
+const result = { value: data.tokens };
 
-    if (!result || !result.value || result.value.length === 0) {
-      walletResult.innerHTML = "<p>No SPL tokens found or invalid wallet address.</p>";
-      return;
-    }
+if (!result.value || result.value.length === 0) {
+  walletResult.innerHTML = "<p>No SPL tokens found or invalid wallet address.</p>";
+  return;
+}
 
-    const validTokens = result.value.filter(t => {
+const validTokens = result.value.filter(t => {
       const amount = parseFloat(t.account.data.parsed.info.tokenAmount.amount);
       return amount > 0;
     });
