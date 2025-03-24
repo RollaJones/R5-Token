@@ -39,7 +39,7 @@ async function checkToken(tokenAddress = null) {
       return;
     }
 
-    // Fallback to Solscan API
+    // Fallback to Solscan
     const solscanRes = await fetch(`https://public-api.solscan.io/token/meta?tokenAddress=${address}`, {
       headers: {
         accept: "application/json"
