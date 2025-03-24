@@ -106,25 +106,32 @@ async function scanWallet() {
   walletResult.innerHTML = "Scanning wallet...";
 
   try {
-    const res = await fetch(`https://public-api.solscan.io/account/tokens?account=${address}`, {
-      headers: {
-        accept: "application/json"
-      }
+    const response = await fetch("https://api.mainnet-beta.solana.com", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getTokenAccountsByOwner",
+        params: [
+          address,
+          { programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" },
+          { encoding: "jsonParsed" }
+        ]
+      })
     });
 
-    const tokens = await res.json();
-
-    if (!Array.isArray(tokens) || tokens.length === 0) {
+    const { result } = await response.json();
+    if (!result || !result.value || result.value.length === 0) {
       walletResult.innerHTML = "<p>No SPL tokens found or invalid wallet address.</p>";
       return;
     }
 
-    const topTokens = tokens.filter(t => t.tokenAddress !== "So11111111111111111111111111111111111111112").slice(0, 10);
-
+    const topTokens = result.value.slice(0, 10);
     let html = `<p>Found ${topTokens.length} tokens. Checking safety...</p>`;
 
-    for (const t of topTokens) {
-      const tokenAddress = t.tokenAddress;
+    for (const item of topTokens) {
+      const tokenAddress = item.account.data.parsed.info.mint;
       html += `<div style="margin: 1rem 0;"><strong>${tokenAddress}</strong><br/>`;
 
       try {
@@ -154,8 +161,7 @@ async function scanWallet() {
     }
 
     walletResult.innerHTML = html;
-
   } catch (err) {
-    walletResult.innerHTML = "<p>Failed to fetch wallet tokens. Please try again later.</p>";
+    walletResult.innerHTML = "<p>Failed to scan wallet. Please check the address and try again.</p>";
   }
 }
