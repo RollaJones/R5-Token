@@ -137,6 +137,7 @@ async function scanWallet() {
 
     for (const item of topTokens) {
       const tokenAddress = item.account.data.parsed.info.mint;
+      console.log("Scanning token:", tokenAddress);
       html += `<div style="margin: 1rem 0;"><strong>${tokenAddress}</strong><br/>`;
 
       try {
