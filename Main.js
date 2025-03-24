@@ -107,7 +107,7 @@ async function scanWallet() {
   console.log("Starting wallet scan for:", address);
 
   try {
-    const response = await fetch("https://cors.solana.tools/", {
+    const response = await fetch("https://solana-cors-proxy.pages.dev/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
