@@ -100,34 +100,24 @@ async function getTopTokens() {
     topDiv.innerHTML = "Failed to load trending tokens.";
   }
 }
+
 async function scanWallet() {
   const address = document.getElementById("walletAddress").value;
   const walletResult = document.getElementById("walletResult");
   walletResult.innerHTML = "Scanning wallet...";
-  console.log("Starting wallet scan for:", address);
 
   try {
-    const response = await fetch("https://solana-cors-proxy.pages.dev/", {
+    const response = await fetch("/.netlify/functions/scanWallet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "getTokenAccountsByOwner",
-        params: [
-          address,
-          { programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" },
-          { encoding: "jsonParsed" }
-        ]
-      })
+      body: JSON.stringify({ address })
     });
 
     const data = await response.json();
-    console.log("Solana RPC Response:", data);
-
     const result = data.result;
-    if (!result || !result.value) {
-      walletResult.innerHTML = "<p>Wallet not found or invalid.</p>";
+
+    if (!result || !result.value || result.value.length === 0) {
+      walletResult.innerHTML = "<p>No SPL tokens found or invalid wallet address.</p>";
       return;
     }
 
@@ -137,28 +127,26 @@ async function scanWallet() {
     });
 
     if (validTokens.length === 0) {
-      walletResult.innerHTML = "<p>This wallet holds no active SPL tokens.</p>";
+      walletResult.innerHTML = "<p>This wallet has no active SPL tokens (might be empty or Token-2022 only).</p>";
       return;
     }
 
     const topTokens = validTokens.slice(0, 10);
-    let html = `<p>Found ${topTokens.length} tokens. Scanning...</p>`;
+    let html = `<p>Found ${topTokens.length} tokens. Checking safety...</p>`;
     let badTokenCount = 0;
 
     for (const item of topTokens) {
       const tokenAddress = item.account.data.parsed.info.mint;
       html += `<div style="margin: 1rem 0;"><strong>${tokenAddress}</strong><br/>`;
-      console.log("Scanning token:", tokenAddress);
 
       try {
         const proxy = "https://corsproxy.io/?";
         const url = `https://api.dexscreener.com/latest/dex/pairs/solana/${tokenAddress}`;
         const res = await fetch(proxy + encodeURIComponent(url));
         const tokenData = await res.json();
-        console.log("Dex data for", tokenAddress, tokenData);
 
         if (!tokenData.pair) {
-          html += "No market data found.<br/></div>";
+          html += "No DEX data found.<br/></div>";
           continue;
         }
 
@@ -174,8 +162,7 @@ async function scanWallet() {
         </div>
         `;
       } catch (err) {
-        console.error("Error fetching token info:", err);
-        html += "Error fetching token info.<br/></div>";
+        html += "Error scanning token.<br/></div>";
       }
     }
 
@@ -191,9 +178,8 @@ async function scanWallet() {
         <strong>Wallet Health:</strong> ${health}
       </div>` + html;
 
-    console.log("Wallet scan complete.");
   } catch (err) {
     console.error("Wallet scan failed:", err);
-    walletResult.innerHTML = "<p>Wallet scan failed. Please try again.</p>";
+    walletResult.innerHTML = "<p>Wallet scan failed. Please try again later.</p>";
   }
 }
