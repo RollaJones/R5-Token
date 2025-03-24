@@ -104,6 +104,7 @@ async function scanWallet() {
   const address = document.getElementById("walletAddress").value;
   const walletResult = document.getElementById("walletResult");
   walletResult.innerHTML = "Scanning wallet...";
+  console.log("Starting wallet scan for:", address);
 
   try {
     const response = await fetch("https://cors.solana.tools/", {
@@ -121,9 +122,12 @@ async function scanWallet() {
       })
     });
 
-    const { result } = await response.json();
+    const data = await response.json();
+    console.log("Solana RPC Response:", data);
+
+    const result = data.result;
     if (!result || !result.value) {
-      walletResult.innerHTML = "<p>Unable to read wallet — please check the address and try again.</p>";
+      walletResult.innerHTML = "<p>Wallet not found or invalid.</p>";
       return;
     }
 
@@ -133,30 +137,32 @@ async function scanWallet() {
     });
 
     if (validTokens.length === 0) {
-      walletResult.innerHTML = "<p>This wallet has no active SPL tokens (might be empty or hold Token-2022 only).</p>";
+      walletResult.innerHTML = "<p>This wallet holds no active SPL tokens.</p>";
       return;
     }
 
     const topTokens = validTokens.slice(0, 10);
-    let html = `<p>Found ${topTokens.length} active tokens. Checking safety...</p>`;
+    let html = `<p>Found ${topTokens.length} tokens. Scanning...</p>`;
     let badTokenCount = 0;
 
     for (const item of topTokens) {
       const tokenAddress = item.account.data.parsed.info.mint;
       html += `<div style="margin: 1rem 0;"><strong>${tokenAddress}</strong><br/>`;
+      console.log("Scanning token:", tokenAddress);
 
       try {
         const proxy = "https://corsproxy.io/?";
         const url = `https://api.dexscreener.com/latest/dex/pairs/solana/${tokenAddress}`;
         const res = await fetch(proxy + encodeURIComponent(url));
-        const data = await res.json();
+        const tokenData = await res.json();
+        console.log("Dex data for", tokenAddress, tokenData);
 
-        if (!data.pair) {
-          html += "No DEX data found.<br/></div>";
+        if (!tokenData.pair) {
+          html += "No market data found.<br/></div>";
           continue;
         }
 
-        const token = data.pair;
+        const token = tokenData.pair;
         const score = calculateSafetyScore(token);
         const redFlags = detectRedFlags(token);
         if (score < 50 || redFlags.length > 0) badTokenCount++;
@@ -168,23 +174,26 @@ async function scanWallet() {
         </div>
         `;
       } catch (err) {
-        html += "Error scanning token.<br/></div>";
+        console.error("Error fetching token info:", err);
+        html += "Error fetching token info.<br/></div>";
       }
     }
 
-    // Wallet Health Meter
-    const health = badTokenCount === 0
-      ? "Excellent — no risky tokens detected."
-      : badTokenCount < 3
-      ? `Caution: ${badTokenCount} questionable token${badTokenCount > 1 ? "s" : ""} found.`
-      : `Alert: ${badTokenCount} high-risk tokens detected.`;
+    const health =
+      badTokenCount === 0
+        ? "Excellent — no risky tokens found."
+        : badTokenCount < 3
+        ? `Caution: ${badTokenCount} questionable token(s).`
+        : `Alert: ${badTokenCount} high-risk tokens.`;
 
-    html = `<div style="background:#e3f2fd;padding:1rem;border-left:6px solid #2196f3;">
-      <strong>Wallet Health:</strong> ${health}
-    </div>` + html;
+    walletResult.innerHTML = `
+      <div style="background:#e3f2fd;padding:1rem;border-left:6px solid #2196f3;">
+        <strong>Wallet Health:</strong> ${health}
+      </div>` + html;
 
-    walletResult.innerHTML = html;
+    console.log("Wallet scan complete.");
   } catch (err) {
-    walletResult.innerHTML = "<p>Failed to scan wallet. Try again later or use another address.</p>";
+    console.error("Wallet scan failed:", err);
+    walletResult.innerHTML = "<p>Wallet scan failed. Please try again.</p>";
   }
 }
