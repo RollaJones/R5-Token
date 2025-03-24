@@ -100,3 +100,57 @@ async function getTopTokens() {
     topDiv.innerHTML = "Failed to load trending tokens.";
   }
 }
+async function scanWallet() {
+  const address = document.getElementById("walletAddress").value;
+  const walletResult = document.getElementById("walletResult");
+  walletResult.innerHTML = "Scanning wallet...";
+
+  try {
+    const res = await fetch(`https://public-api.solscan.io/account/tokens?account=${address}`);
+    const tokens = await res.json();
+
+    if (!Array.isArray(tokens) || tokens.length === 0) {
+      walletResult.innerHTML = "<p>No SPL tokens found or invalid wallet address.</p>";
+      return;
+    }
+
+    const topTokens = tokens.filter(t => t.tokenAddress !== "So11111111111111111111111111111111111111112").slice(0, 10);
+    
+    let html = `<p>Found ${topTokens.length} tokens. Checking safety...</p>`;
+    
+    for (const t of topTokens) {
+      const tokenAddress = t.tokenAddress;
+      html += `<div style="margin: 1rem 0;"><strong>${tokenAddress}</strong><br/>`;
+
+      try {
+        const proxy = "https://corsproxy.io/?";
+        const url = `https://api.dexscreener.com/latest/dex/pairs/solana/${tokenAddress}`;
+        const res = await fetch(proxy + encodeURIComponent(url));
+        const data = await res.json();
+
+        if (!data.pair) {
+          html += "No data available.<br/></div>";
+          continue;
+        }
+
+        const token = data.pair;
+        const score = calculateSafetyScore(token);
+        const redFlags = detectRedFlags(token);
+
+        html += `
+          Symbol: ${token.baseToken.symbol || "?"} | Score: ${score}/100<br/>
+          Liquidity: $${parseFloat(token.liquidity.usd).toLocaleString()}<br/>
+          ${redFlags.length > 0 ? `<span style="color: red;">Flags: ${redFlags.join(", ")}</span>` : "<span style='color: green;'>No major red flags</span>"}
+        </div>
+        `;
+      } catch (err) {
+        html += "Error scanning token.<br/></div>";
+      }
+    }
+
+    walletResult.innerHTML = html;
+
+  } catch (err) {
+    walletResult.innerHTML = "<p>Failed to fetch wallet tokens. Please try again.</p>";
+  }
+}
