@@ -106,7 +106,7 @@ async function scanWallet() {
   walletResult.innerHTML = "Scanning wallet...";
 
   try {
-    const response = await fetch("https://api.mainnet-beta.solana.com", {
+    const response = await fetch("https://cors.solana.tools/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -162,6 +162,6 @@ async function scanWallet() {
 
     walletResult.innerHTML = html;
   } catch (err) {
-    walletResult.innerHTML = "<p>Failed to scan wallet. Please check the address and try again.</p>";
+    walletResult.innerHTML = "<p>Failed to scan wallet. Please try again later.</p>";
   }
 }
