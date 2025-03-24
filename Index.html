@@ -9,10 +9,18 @@
 <body>
   <div class="container">
     <h1>R5 Secure Token Checker</h1>
+    
     <input type="text" id="tokenAddress" placeholder="Enter Solana Token Address" />
     <button onclick="checkToken()">Check Token</button>
+
     <div id="result"></div>
+
+    <hr style="margin: 2rem 0;">
+
+    <h2>Top Trending Solana Tokens</h2>
+    <div id="topTokens">Loading...</div>
   </div>
+
   <script src="main.js"></script>
 </body>
 </html>
