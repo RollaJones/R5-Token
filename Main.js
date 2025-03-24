@@ -7,42 +7,61 @@ async function checkToken(tokenAddress = null) {
   resultDiv.innerHTML = "Looking up token...";
 
   try {
-    const url = `https://public-api.birdeye.so/public/token/${address}`;
-    const res = await fetch(url);
-    const data = await res.json();
+    // Try Birdeye first
+    const birdeyeUrl = `https://public-api.birdeye.so/public/token/${address}`;
+    const birdeyeRes = await fetch(birdeyeUrl);
+    const birdeyeData = await birdeyeRes.json();
 
-    if (!data || !data.data || !data.data.symbol) {
-      resultDiv.innerHTML = "<p>Token not found or invalid address.</p>";
+    if (birdeyeData && birdeyeData.data && birdeyeData.data.symbol) {
+      const token = birdeyeData.data;
+      const score = birdeyeSafetyScore(token);
+
+      resultDiv.innerHTML = `
+        <h2>${token.name || "Unknown Token"}</h2>
+        <p><strong>Symbol:</strong> ${token.symbol}</p>
+        <p><strong>Price:</strong> $${parseFloat(token.price_usd).toFixed(6)}</p>
+        <p><strong>Liquidity:</strong> $${parseFloat(token.liquidity_usd || 0).toLocaleString()}</p>
+        <p><strong>Volume 24h:</strong> $${parseFloat(token.volume_24h || 0).toLocaleString()}</p>
+        <p><strong>Safety Score:</strong> ${score}/100</p>
+      `;
+
+      if (score < 60) {
+        resultDiv.innerHTML += `
+          <div style="background: #ffe4e1; padding: 1rem; margin-top: 1rem;">
+            <h3 style="color: #d32f2f;">Red Flags</h3>
+            <ul>
+              ${token.liquidity_usd < 1000 ? "<li>Low liquidity</li>" : ""}
+              ${token.volume_24h < 5000 ? "<li>Low trading volume</li>" : ""}
+            </ul>
+          </div>
+        `;
+      }
       return;
     }
 
-    const token = data.data;
-    const score = birdeyeSafetyScore(token);
+    // Fallback to Solscan API
+    const solscanRes = await fetch(`https://public-api.solscan.io/token/meta?tokenAddress=${address}`, {
+      headers: {
+        accept: "application/json"
+      }
+    });
+    const solscanData = await solscanRes.json();
 
-    resultDiv.innerHTML = `
-      <h2>${token.name || "Unknown Token"}</h2>
-      <p><strong>Symbol:</strong> ${token.symbol}</p>
-      <p><strong>Price:</strong> $${parseFloat(token.price_usd).toFixed(6)}</p>
-      <p><strong>Liquidity:</strong> $${parseFloat(token.liquidity_usd || 0).toLocaleString()}</p>
-      <p><strong>Volume 24h:</strong> $${parseFloat(token.volume_24h || 0).toLocaleString()}</p>
-      <p><strong>Safety Score:</strong> ${score}/100</p>
-    `;
-
-    if (score < 60) {
-      resultDiv.innerHTML += `
-        <div style="background: #ffe4e1; padding: 1rem; margin-top: 1rem;">
-          <h3 style="color: #d32f2f;">Red Flags</h3>
-          <ul>
-            ${token.liquidity_usd < 1000 ? "<li>Low liquidity</li>" : ""}
-            ${token.volume_24h < 5000 ? "<li>Low trading volume</li>" : ""}
-          </ul>
-        </div>
+    if (solscanData && solscanData.symbol) {
+      resultDiv.innerHTML = `
+        <h2>${solscanData.name || "Unknown Token"}</h2>
+        <p><strong>Symbol:</strong> ${solscanData.symbol}</p>
+        <p><strong>Decimals:</strong> ${solscanData.decimals}</p>
+        <p><strong>Mint Authority:</strong> ${solscanData.mintAuthority || "N/A"}</p>
+        <p><strong>Status:</strong> Not trading on DEX — no market data available</p>
       `;
+    } else {
+      resultDiv.innerHTML = "<p>Token not found or not yet indexed.</p>";
     }
 
   } catch (err) {
-    console.error("Error checking token:", err);
-    resultDiv.innerHTML = "<p>Error fetching token data. Please try again.</p>";
+    console.error("Token check failed:", err);
+    resultDiv.innerHTML = "<p>Error fetching token data. Please try again later.</p>";
   }
 }
 
