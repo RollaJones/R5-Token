@@ -4,77 +4,54 @@ async function checkToken(tokenAddress = null) {
   const inputAddress = document.getElementById("tokenAddress").value;
   const address = tokenAddress || inputAddress.trim();
   const resultDiv = document.getElementById("result");
-  resultDiv.innerHTML = "Searching...";
+  resultDiv.innerHTML = "Looking up token...";
 
   try {
-    // Step 1: Search DexScreener using token address
-    const searchURL = `https://corsproxy.io/?${encodeURIComponent(
-      `https://api.dexscreener.com/latest/dex/search?q=${address}`
-    )}`;
-    const searchRes = await fetch(searchURL);
-    const searchData = await searchRes.json();
+    const url = `https://public-api.birdeye.so/public/token/${address}`;
+    const res = await fetch(url);
+    const data = await res.json();
 
-    if (!searchData.pairs || searchData.pairs.length === 0) {
-      resultDiv.innerHTML = "<p>No token found or invalid address.</p>";
+    if (!data || !data.data || !data.data.symbol) {
+      resultDiv.innerHTML = "<p>Token not found or invalid address.</p>";
       return;
     }
 
-    // Step 2: Use first matched pair from search
-    const pair = searchData.pairs[0];
-    const score = calculateSafetyScore(pair);
-    const redFlags = detectRedFlags(pair);
+    const token = data.data;
+    const score = birdeyeSafetyScore(token);
 
     resultDiv.innerHTML = `
-      <h2>${pair.baseToken.name || "Unknown Token"}</h2>
-      <p><strong>Symbol:</strong> ${pair.baseToken.symbol}</p>
-      <p><strong>Price:</strong> $${parseFloat(pair.priceUsd).toFixed(6)}</p>
-      <p><strong>Liquidity:</strong> $${parseFloat(pair.liquidity.usd).toLocaleString()}</p>
-      <p><strong>Volume 24h:</strong> $${parseFloat(pair.volume.h24).toLocaleString()}</p>
+      <h2>${token.name || "Unknown Token"}</h2>
+      <p><strong>Symbol:</strong> ${token.symbol}</p>
+      <p><strong>Price:</strong> $${parseFloat(token.price_usd).toFixed(6)}</p>
+      <p><strong>Liquidity:</strong> $${parseFloat(token.liquidity_usd || 0).toLocaleString()}</p>
+      <p><strong>Volume 24h:</strong> $${parseFloat(token.volume_24h || 0).toLocaleString()}</p>
       <p><strong>Safety Score:</strong> ${score}/100</p>
     `;
 
-    if (redFlags.length > 0) {
+    if (score < 60) {
       resultDiv.innerHTML += `
         <div style="background: #ffe4e1; padding: 1rem; margin-top: 1rem;">
-          <h3 style="color: #d32f2f;">Red Flags Detected</h3>
-          <ul>${redFlags.map(f => `<li>${f}</li>`).join("")}</ul>
+          <h3 style="color: #d32f2f;">Red Flags</h3>
+          <ul>
+            ${token.liquidity_usd < 1000 ? "<li>Low liquidity</li>" : ""}
+            ${token.volume_24h < 5000 ? "<li>Low trading volume</li>" : ""}
+          </ul>
         </div>
       `;
     }
+
   } catch (err) {
-    console.error("Check Token Error:", err);
-    resultDiv.innerHTML = "<p>Error fetching data. Try again.</p>";
+    console.error("Error checking token:", err);
+    resultDiv.innerHTML = "<p>Error fetching token data. Please try again.</p>";
   }
 }
 
-function calculateSafetyScore(token) {
-  let score = 50;
-  if (token.liquidity.usd > 20000) score += 15;
-  if (token.volume.h24 > 50000) score += 10;
-  if (token.baseToken.symbol && token.baseToken.symbol.length < 6) score += 5;
-  if (token.priceUsd < 0.01) score -= 5;
+function birdeyeSafetyScore(token) {
+  let score = 60;
+  if (token.liquidity_usd > 20000) score += 20;
+  if (token.volume_24h > 50000) score += 10;
+  if (token.symbol && token.symbol.length < 6) score += 5;
   return Math.min(score, 100);
-}
-
-function detectRedFlags(token) {
-  const flags = [];
-
-  if (
-    !token.tokenInfo ||
-    (token.tokenInfo.tokenProgram !== "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
-  ) {
-    flags.push("Token-2022 (may not be supported by all wallets/DEXs)");
-  }
-
-  if (!token.baseToken.name || !token.baseToken.symbol) {
-    flags.push("Missing name/symbol metadata");
-  }
-
-  if (token.liquidity.usd < 1000) {
-    flags.push("Very low or no liquidity");
-  }
-
-  return flags;
 }
 
 async function getTopTokens() {
@@ -95,7 +72,7 @@ async function getTopTokens() {
           $${parseFloat(token.priceUsd).toFixed(6)}<br/>
           Liquidity: $${parseFloat(token.liquidity.usd).toLocaleString()}<br/>
           Volume 24h: $${parseFloat(token.volume.h24).toLocaleString()}<br/>
-          <button onclick="checkToken('${token.pairAddress}')">Scan</button>
+          <button onclick="checkToken('${token.baseToken.address}')">Scan</button>
         </div>
       `
       )
@@ -141,29 +118,28 @@ async function scanWallet() {
 
     for (const item of topTokens) {
       const tokenAddress = item.account.data.parsed.info.mint;
-      console.log("Scanning token:", tokenAddress); // Log token for debugging
+      console.log("Scanning token:", tokenAddress);
       html += `<div style="margin: 1rem 0;"><strong>${tokenAddress}</strong><br/>`;
 
       try {
-        const proxy = "https://corsproxy.io/?";
-        const url = `https://api.dexscreener.com/latest/dex/pairs/solana/${tokenAddress}`;
-        const res = await fetch(proxy + encodeURIComponent(url));
+        const url = `https://public-api.birdeye.so/public/token/${tokenAddress}`;
+        const res = await fetch(url);
         const tokenData = await res.json();
 
-        if (!tokenData.pair) {
-          html += "No DEX data found.<br/></div>";
+        if (!tokenData || !tokenData.data) {
+          html += "No data found.<br/></div>";
           continue;
         }
 
-        const token = tokenData.pair;
-        const score = calculateSafetyScore(token);
-        const redFlags = detectRedFlags(token);
-        if (score < 50 || redFlags.length > 0) badTokenCount++;
+        const token = tokenData.data;
+        const score = birdeyeSafetyScore(token);
+        if (score < 50) badTokenCount++;
 
         html += `
-          Symbol: ${token.baseToken.symbol || "?"} | Score: ${score}/100<br/>
-          Liquidity: $${parseFloat(token.liquidity.usd).toLocaleString()}<br/>
-          ${redFlags.length > 0 ? `<span style="color: red;">Flags: ${redFlags.join(", ")}</span>` : "<span style='color: green;'>No major red flags</span>"}
+          Symbol: ${token.symbol || "?"} | Score: ${score}/100<br/>
+          Liquidity: $${parseFloat(token.liquidity_usd || 0).toLocaleString()}<br/>
+          Volume: $${parseFloat(token.volume_24h || 0).toLocaleString()}<br/>
+          ${score < 60 ? `<span style="color: red;">Low score - risky token</span>` : "<span style='color: green;'>No major red flags</span>"}
         </div>
         `;
       } catch (err) {
