@@ -120,3 +120,71 @@ async function scanWallet() {
         ]
       })
     });
+
+    const { result } = await response.json();
+    if (!result || !result.value) {
+      walletResult.innerHTML = "<p>Unable to read wallet — please check the address and try again.</p>";
+      return;
+    }
+
+    const validTokens = result.value.filter(t => {
+      const amount = parseFloat(t.account.data.parsed.info.tokenAmount.amount);
+      return amount > 0;
+    });
+
+    if (validTokens.length === 0) {
+      walletResult.innerHTML = "<p>This wallet has no active SPL tokens (might be empty or hold Token-2022 only).</p>";
+      return;
+    }
+
+    const topTokens = validTokens.slice(0, 10);
+    let html = `<p>Found ${topTokens.length} active tokens. Checking safety...</p>`;
+    let badTokenCount = 0;
+
+    for (const item of topTokens) {
+      const tokenAddress = item.account.data.parsed.info.mint;
+      html += `<div style="margin: 1rem 0;"><strong>${tokenAddress}</strong><br/>`;
+
+      try {
+        const proxy = "https://corsproxy.io/?";
+        const url = `https://api.dexscreener.com/latest/dex/pairs/solana/${tokenAddress}`;
+        const res = await fetch(proxy + encodeURIComponent(url));
+        const data = await res.json();
+
+        if (!data.pair) {
+          html += "No DEX data found.<br/></div>";
+          continue;
+        }
+
+        const token = data.pair;
+        const score = calculateSafetyScore(token);
+        const redFlags = detectRedFlags(token);
+        if (score < 50 || redFlags.length > 0) badTokenCount++;
+
+        html += `
+          Symbol: ${token.baseToken.symbol || "?"} | Score: ${score}/100<br/>
+          Liquidity: $${parseFloat(token.liquidity.usd).toLocaleString()}<br/>
+          ${redFlags.length > 0 ? `<span style="color: red;">Flags: ${redFlags.join(", ")}</span>` : "<span style='color: green;'>No major red flags</span>"}
+        </div>
+        `;
+      } catch (err) {
+        html += "Error scanning token.<br/></div>";
+      }
+    }
+
+    // Wallet Health Meter
+    const health = badTokenCount === 0
+      ? "Excellent — no risky tokens detected."
+      : badTokenCount < 3
+      ? `Caution: ${badTokenCount} questionable token${badTokenCount > 1 ? "s" : ""} found.`
+      : `Alert: ${badTokenCount} high-risk tokens detected.`;
+
+    html = `<div style="background:#e3f2fd;padding:1rem;border-left:6px solid #2196f3;">
+      <strong>Wallet Health:</strong> ${health}
+    </div>` + html;
+
+    walletResult.innerHTML = html;
+  } catch (err) {
+    walletResult.innerHTML = "<p>Failed to scan wallet. Try again later or use another address.</p>";
+  }
+}
