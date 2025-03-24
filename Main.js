@@ -106,7 +106,12 @@ async function scanWallet() {
   walletResult.innerHTML = "Scanning wallet...";
 
   try {
-    const res = await fetch(`https://public-api.solscan.io/account/tokens?account=${address}`);
+    const res = await fetch(`https://public-api.solscan.io/account/tokens?account=${address}`, {
+      headers: {
+        accept: "application/json"
+      }
+    });
+
     const tokens = await res.json();
 
     if (!Array.isArray(tokens) || tokens.length === 0) {
@@ -115,9 +120,9 @@ async function scanWallet() {
     }
 
     const topTokens = tokens.filter(t => t.tokenAddress !== "So11111111111111111111111111111111111111112").slice(0, 10);
-    
+
     let html = `<p>Found ${topTokens.length} tokens. Checking safety...</p>`;
-    
+
     for (const t of topTokens) {
       const tokenAddress = t.tokenAddress;
       html += `<div style="margin: 1rem 0;"><strong>${tokenAddress}</strong><br/>`;
@@ -151,6 +156,6 @@ async function scanWallet() {
     walletResult.innerHTML = html;
 
   } catch (err) {
-    walletResult.innerHTML = "<p>Failed to fetch wallet tokens. Please try again.</p>";
+    walletResult.innerHTML = "<p>Failed to fetch wallet tokens. Please try again later.</p>";
   }
 }
