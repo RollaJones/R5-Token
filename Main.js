@@ -114,20 +114,20 @@ async function scanWallet() {
     });
 
     const data = await response.json();
-const tokens = data.tokens;
+    const tokens = data.tokens;
 
-if (!tokens || tokens.length === 0) {
-  walletResult.innerHTML = "<p>No tokens found in this wallet (SPL or Token-2022).</p>";
-  return;
-}
+    if (!tokens || tokens.length === 0) {
+      walletResult.innerHTML = "<p>No tokens found in this wallet (SPL or Token-2022).</p>";
+      return;
+    }
 
-const validTokens = tokens.filter(t => {
-  const amount = parseFloat(t.account.data.parsed.info.tokenAmount.amount);
-  return amount > 0;
-});
+    const validTokens = tokens.filter(t => {
+      const amount = parseFloat(t.account.data.parsed.info.tokenAmount.amount);
+      return amount > 0;
+    });
 
     if (validTokens.length === 0) {
-      walletResult.innerHTML = "<p>This wallet has no active SPL tokens (might be empty or Token-2022 only).</p>";
+      walletResult.innerHTML = "<p>Wallet has only zero-balance or unscannable tokens.</p>";
       return;
     }
 
